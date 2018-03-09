@@ -10,9 +10,8 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import gender_guesser.detector as gender
+from pathlib import Path
 
-
-#
 """RESEARCH QUESTIONS
 - number of question by gender, between genders
 - question topics by gender
@@ -20,7 +19,7 @@ import gender_guesser.detector as gender
 - inter party questions?
 """
 
-print('hello7')
+print('hello9')
 
 def get_current_ministers():
     cabinet_url = 'https://www.gov.uk/government/ministers'
@@ -48,12 +47,15 @@ def get_current_ministers():
 
 
 def clean_role(string):
-    drop = ['Ministry of', 'Office', 'Department for',
-            'Secretary of State for', 'Chancellor of the', 'Minister of State for',
-            'Minister for', 'HM', 'Chief Secretary to', 'Leader of', 'the']
+    drop = ['Lord Chancellor and Secretary of State for',
+            'Ministry', 'Office', 'Department',
+            'Secretary of State', 'Chancellor', 'State',
+            'Minister', 'HM', 'Chief Secretary', 'Leader', 'Affairs', 'Commissioners',
+            'Commission', 'President of the Board of Trade', 'Lord Chancellor', 
+            'Department', ' of ', ' for ',' the ', ' and ', ' to ']
 
     for s in drop:
-        string=string.replace(s, '')
+        string=string.replace(s, ' ')
     
     return string.strip()
 
@@ -68,7 +70,8 @@ def clean_dict_keys(d):
 
 
 def get_answering_names():
-    df = pd.read_csv('/Users/emg/Programming/GitHub/net-play/commonsoralquestions.csv')
+    file = Path.cwd().joinpath(*['data','commonsoralquestions.csv'])
+    df = pd.read_csv(file)
     positions = df['answering body'].unique()
     clean_positions = [clean_role(x) for x in positions]
     
@@ -90,14 +93,6 @@ def get_answering_names():
                 d[p] = v
     
     return d, missing
-
-def load_data():
-    df = pd.read_csv('/Users/emg/Programming/GitHub/net-play/commonsoralquestions.csv')
-    df['date tabled'] = pd.to_datetime(df['date tabled'])
-    df['answer date'] = pd.to_datetime(df['answer date'])
-    df['response_time'] = (df['answer date'] - df['date tabled']).dt.days
-    
-    return df
     
 def first_name(string):
     titles = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Sir']
@@ -106,8 +101,12 @@ def first_name(string):
         names = names[1:]
     return names[0]
 
-def get_gendered_data():
-    df = load_data()
+def load_data():
+    file = Path.cwd().joinpath(*['data','commonsoralquestions.csv'])
+    df = pd.read_csv(file)
+    df['date tabled'] = pd.to_datetime(df['date tabled'])
+    df['answer date'] = pd.to_datetime(df['answer date'])
+    df['response_time'] = (df['answer date'] - df['date tabled']).dt.days
 
     minister_names, missing = get_answering_names()
     
@@ -147,15 +146,50 @@ def get_gendered_data():
 
 
 def stats():
-    df = get_gendered_data()
+    df = load_data()
     
-    df.groupby('q_gender')['response_time'].mean()
-    df.groupby('a_gender')['response_time'].mean()
+    df.groupby('q_gender')['response_time'].describe()
+    df.groupby('a_gender')['response_time'].describe()
     
-    (df.groupby(['q_gender','a_gender'])['q_first'].count()
-                                                    .sort_values(ascending=False)
-                                                    .unstack())
+    t = gender_counts('commons question time > question type')
+    t.plot(kind='bar')
+     
+    t = gender_counts('question status')
+    t.plot(kind='bar')
+
+def gender_counts(variable, normalized=True):
+    df = load_data()
+    
+    return df.groupby(['q_gender','a_gender'])[variable].value_counts(normalize=normalized).unstack()
+    
+    
+    
+def new_data():
+    url = 'http://lda.data.parliament.uk/commonsoralquestions.html'
+    parameter = '_pageSize=value'
+    
+    pd.read_html(url + parameter)
+    
+def basic_counts():
+    df = load_data()
+    
+    qgc = df['q_gender'].value_counts()
+    print(f"of the {len(df)} questions {qgc['male']} are asked by men and {qgc['female']} by women")
+    
+    agc = df['a_gender'].value_counts()
+    print(f"of the {len(df)} questions {agc['male']} are posed to men and {agc['female']} to women \
+                                                                ({agc['unknown']} unknown)")
 
 
-
+"""
+['Church Commissioners',
+ 'Department of Health and Social Care',
+ 'Foreign and Commonwealth',
+ 'Home',
+ 'House of Commons Commission',
+ 'International Trade',
+ 'Justice',
+ 'Public Accounts Commission',
+ "Speaker's Committee on  Electoral Commission"]
+"""
 
